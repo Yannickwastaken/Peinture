@@ -1,20 +1,23 @@
 # config.py
 
 # Connexion imprimante
-port = "COM8"            # Remplace par le port réel (ex : COM3, /dev/ttyUSB0)
+port = "COM3"            # Remplace par le port réel (ex : COM3, /dev/ttyUSB0)
 baudrate = 115200        # Vitesse de communication série
 
 # Paramètres géométriques pour la courbe hypotrochoïde
 R = 68                   # Grand rayon
 r = 12                   # Petit rayon
-d = 50                   # Distance du point traceur au centre du petit cercle
+d = 31          # Distance du point traceur au centre du petit cercle
 nb_points = 10000         # Nombre de points de la courbe
-scale = 0.8*0.8             # Échelle de la courbe
-turns = 1                # Nombre de tours
+scale = 0.75               # Échelle de la courbe
+turns = 1.2                # Nombre de tours
 
-# Paramètres pour les p oints de peinture
+# Paramètres pour les points de peinture
 espacement_peinture = 25     # Espacement entre les points
 marge_peinture = 3        # Marge intérieure
+mode="cerclage"
+n_cercles= 10
+tolerance= 1.0
 
 # Paramètres pour le mouvement en Z
 z_init = 5.0                  # Hauteur de proche du tableau

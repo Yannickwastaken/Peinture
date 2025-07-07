@@ -34,32 +34,43 @@ def generer_points_couronneold(center_x, center_y, r_min, r_max, espacement=5.0,
 
     return np.array(points)
 
-def generer_points_couronne(center_x, center_y, r_min, r_max, espacement=5.0, marge=0):
+def generer_points_couronne(center_x, center_y, r_min, r_max, espacement=5.0, marge=0,
+                             mode="quadriage", courbe=None, n_cercles=10, tolerance=1.0):
     """
-    Génère une grille régulière de points à l’intérieur d'une couronne symétrique.
-
-    :param center_x: centre X
-    :param center_y: centre Y
-    :param r_min: rayon intérieur (trou)
-    :param r_max: rayon extérieur (bord)
-    :param espacement: distance entre les points
-    :param marge: marge optionnelle sur les bords
-    :return: tableau Nx2 de points (x, y)
+    Mode "cerclage" : extrait les points de la courbe qui sont proches de cercles concentriques
+    Mode "quadriage" : quadrillage régulier dans une couronne
     """
-    points = []
+    if mode == "quadriage":
+        points = []
+        n_steps = int(np.ceil(r_max / espacement))
+        for i in range(-n_steps, n_steps + 1):
+            x = center_x + i * espacement
+            for j in range(-n_steps, n_steps + 1):
+                y = center_y + j * espacement
+                distance = np.sqrt((x - center_x)**2 + (y - center_y)**2)
+                if r_min + marge <= distance <= r_max - marge:
+                    points.append((x, y))
+        return np.array(points)
 
-    # Nombre de pas dans chaque direction depuis le centre
-    n_steps = int(np.ceil(r_max / espacement))
+    elif mode == "cerclage":
+        if courbe is None:
+            raise ValueError("Le mode 'cerclage' nécessite le paramètre 'courbe=(x, y)'.")
 
-    for i in range(-n_steps, n_steps + 1):
-        x = center_x + i * espacement
-        for j in range(-n_steps, n_steps + 1):
-            y = center_y + j * espacement
-            distance = np.sqrt((x - center_x)**2 + (y - center_y)**2)
-            if r_min + marge <= distance <= r_max - marge:
-                points.append((x, y))
+        x, y = courbe
+        distances = np.sqrt((x - center_x)**2 + (y - center_y)**2)
 
-    return np.array(points)
+        rayons = np.linspace(r_min + marge, r_max - marge, n_cercles)
+        result = []
+
+        for rayon in rayons:
+            # Indices où la distance au centre ≈ rayon (± tolérance)
+            indices = np.where(np.abs(distances - rayon) <= tolerance)[0]
+            for idx in indices:
+                result.append((x[idx], y[idx]))
+        return np.array(result)
+
+    else:
+        raise ValueError(f"Mode inconnu : {mode}")
 
 
 def generate_hypotrochoid_points(R, r, d, nb_points=10000, scale=1.0, center_x=0, center_y=0, turns=1):
@@ -109,26 +120,35 @@ def plot_epicycloid_with_paint_points(x, y, R, r, d, paint_points, center_x, cen
     :param save_path: chemin pour sauvegarder l'image (facultatif)
     :param show: booléen pour afficher le plot
     """
-    fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+    fig, axs = plt.subplots(3, 1, figsize=(6, 18))
+
+    # Limites communes à tous les subplots
+    all_x = np.concatenate([x, paint_points[:, 0]])
+    all_y = np.concatenate([y, paint_points[:, 1]])
+    xmin, xmax = np.min(all_x), np.max(all_x)
+    ymin, ymax = np.min(all_y), np.max(all_y)
+    marge = max((xmax - xmin), (ymax - ymin)) * 0.05  # pour une petite marge visuelle
+
+    # Fonction pour configurer un subplot
+    def config_ax(ax, title):
+        ax.set_xlim(xmin - marge, xmax + marge)
+        ax.set_ylim(ymin - marge, ymax + marge)
+        ax.set_aspect('equal')
+        ax.grid(True)
+        ax.set_title(title)
 
     # 1. Courbe
     axs[0].plot(x, y, color='blue')
-    axs[0].set_title("Hypotrochoïde")
-    axs[0].set_aspect('equal')
-    axs[0].grid(True)
+    config_ax(axs[0], "Hypotrochoïde")
 
     # 2. Points seuls
     axs[1].scatter(paint_points[:, 0], paint_points[:, 1], color='red', s=10)
-    axs[1].set_title("Points de peinture")
-    axs[1].set_aspect('equal')
-    axs[1].grid(True)
+    config_ax(axs[1], "Points de peinture")
 
     # 3. Courbe + points
     axs[2].plot(x, y, color='blue', label='Courbe')
     axs[2].scatter(paint_points[:, 0], paint_points[:, 1], color='red', s=10, label='Peinture')
-    axs[2].set_title("Courbe + Peinture")
-    axs[2].set_aspect('equal')
-    axs[2].grid(True)
+    config_ax(axs[2], "Courbe + Peinture")
     axs[2].legend()
 
     # Titre global

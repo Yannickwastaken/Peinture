@@ -20,7 +20,7 @@ from functions.PrinterCode import (
 from config import (
     port, baudrate,
     R, r, d, nb_points, scale, turns,
-    espacement_peinture, marge_peinture,
+    espacement_peinture, marge_peinture,mode,n_cercles, tolerance,
     z_init,
     feedrate_xy, feedrate_z,
     main_gcode_path, dot_gcode_path, figure_path,
@@ -33,6 +33,8 @@ figure_path = f"figures/epicycloide_R{R}_r{r}_d{d}.png"
 
 
 def sequence_complete():
+    #TODO Renommer x,y en courbe pour simplifier des params des fontions
+
     # === Étape 1 : Générer les points de la courbe (hypotrochoïde) ===
     x, y = generate_hypotrochoid_points(
         R, r, d,
@@ -44,18 +46,23 @@ def sequence_complete():
     )
 
     # === Étape 2 : Calculer les rayons minimum et maximum de la couronne ===
+
     Rmin, Rmax = calculer_rayon_min_max(x, y, center_x=0, center_y=0)
     if Rmax > 100:
         print(f"❌ Erreur : Rayon max {Rmax:.2f} mm dépasse la limite autorisée.")
     else:print(f"✅ Rayon maximum valide : {Rmax:.2f} mm")
 
-    # === Étape 3 : Générer les points de peinture initiaux (avant recentrage) ===
-    paint_points = generer_points_couronne(
-        center_x=0, center_y=0,
-        r_min=Rmin, r_max=Rmax,
-        espacement=espacement_peinture,
-        marge=marge_peinture
-    )
+    # # === Étape 3 : Générer les points de peinture initiaux (avant recentrage) ===
+    paint_points = generer_points_couronne(center_x=0,
+                                           center_y=0,
+                                           r_min=Rmin+10,
+                                           r_max=Rmax-5,
+                                           espacement=espacement_peinture,
+                                           marge=marge_peinture,
+                                           mode="cerclage",   #mode = cerclage ou quadriage
+                                           courbe=(0.9*x,0.9*y),
+                                           n_cercles=4,
+                                           tolerance=0.1)
 
     # === Étape 4 : Visualisation initiale de la courbe et des points de peinture ===
     plot_epicycloid_with_paint_points(
@@ -64,16 +71,26 @@ def sequence_complete():
         save_path=figure_path,
         show=True
     )
+    send_gcodeline_to_printer("G28", port= port, baudrate=115200, delay=0.1)
 
     # === Étape 5 : Instructions manuelles à l'utilisateur ===
     pause_pour_continuer("➡️ Si cela convient, appuyez sur 'o'. Prochaine étape : mettre le feutre au centre de la toile.")
+
+    #remetre au centre
+    cmd=f"G1 F1500 Z40"
+    send_gcodeline_to_printer(cmd, port= port, baudrate=115200, delay=0.1)
+    cmd=f"G1 F1500 X110 Z30 Y130"
+    send_gcodeline_to_printer(cmd, port= port, baudrate=115200, delay=0.1)
+
+
     pause_pour_continuer("➡️ Si le stylo est bien positionné (au centre, proche de la toile), appuyez sur 'o' pour continuer au dessin.")
 
     # === Étape 6 : Lecture de la position actuelle de l’imprimante ===
     position = get_printer_position(port, baudrate)
     if not position:
         print("❌ Impossible de lire la position de l'imprimante.")
-        input("X,Y,Z",position['X'],position['Y'],position['Z'])
+        position['X'], position['Y'], position['Z'] = 0, 0, 0
+        input("X,Y,Z", position['X'], position['Y'], position['Z'])
 
     print(f"📍 Position actuelle : X={position['X']}, Y={position['Y']}, Z={position['Z']}")
     pause_pour_continuer(f"Confirmez que le feutre est très proche de la toile. Appuyez sur 'o' pour générer le G-code des points.")
@@ -91,12 +108,19 @@ def sequence_complete():
     y += center_y
 
     # === Étape 8 : Recalcul des points de peinture avec la nouvelle origine ===
-    paint_points = generer_points_couronne(
-        center_x=center_x, center_y=center_y,
-        r_min=Rmin, r_max=Rmax,
-        espacement=espacement_peinture,
-        marge=marge_peinture
-    )
+
+    paint_points = generer_points_couronne(center_x=center_x,
+                                           center_y=center_y,
+                                           r_min=Rmin+10,
+                                           r_max=Rmax,
+                                           espacement=espacement_peinture,
+                                           marge=marge_peinture,
+                                           mode="cerclage",   #mode = cerclage ou quadriage
+                                           courbe=(x,y),
+                                           n_cercles=4,
+                                           tolerance=0.1)
+
+
 
     # === Étape 9 : Génération du G-code pour les points de peinture ===
     gcode_points = generate_paint_points_gcode(

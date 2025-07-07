@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../GuiPronterface/.idea/GuiPronterface.iml" filepath="$PROJECT_DIR$/../GuiPronterface/.idea/GuiPronterface.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/Nouveau dossier.iml" filepath="$PROJECT_DIR$/.idea/Nouveau dossier.iml" />
     </modules>
   </component>

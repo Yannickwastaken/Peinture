@@ -3,6 +3,7 @@ import time
 import re
 import serial
 import time
+import numpy as np
 
 
 def send_gcode_to_printerold(gcode_path, port='/dev/ttyUSB0', baudrate=115200, delay=0.1):
@@ -163,36 +164,58 @@ def generate_gcode(x, y, feedrate = 1500, center_x =0 , center_y=0, Z_init= 20):
     for xi, yi in zip(x, y):
         gcode.append(f"G1 X{xi:.2f} Y{yi:.2f} F{feedrate}")
 
-    gcode.append(f"G1 Z{Z_init + 20} F300")  # relever pinceau
-    gcode.append("G1 X0 Y0")     # retour origine
+    gcode.append(f"G1 F1500 Z{Z_init + 20} F300")  # relever pinceau
+    gcode.append("G1 F1500 X0 Y0")     # retour origine
     return gcode
 
 def generate_paint_points_gcode(paint_points, z_init, feedrate_xy=1500, feedrate_z=1500):
     """
-    Génère un G-code pour déposer un point de peinture à chaque coordonnée de paint_points.
+    Génère un G-code optimisé pour déposer un point de peinture.
 
     :param paint_points: tableau Nx2 des points (X, Y)
-    :param z_safe: hauteur de sécurité (Z) au-dessus de la toile
-    :param z_min: hauteur où le pinceau touche la toile
-    :param feedrate_xy: vitesse de déplacement XY
-    :param feedrate_z: vitesse de descente et montée Z
-    :return: liste de lignes G-code
+    :param z_init: hauteur de base (proche toile)
+    :return: liste G-code optimisé
     """
     gcode = []
     gcode.append("G90")  # mode absolu
-    #gcode.append("G28")  # homing
-    #gcode.append("G1 Z20")  # lever pinceau
-    gcode.append("G21")  # unités mm
-    gcode.append("G1 Z{:.2f} F{}".format(z_init+10, feedrate_z))  # Lever le pinceau
+    gcode.append("G21")  # mm
+    gcode.append("G1 Z{:.2f} F{}".format(z_init + 10, feedrate_z))  # lever pinceau
 
+    # Optimiser les déplacements
+    sorted_points = optimiser_ordre_points(paint_points)
 
-    for x, y in paint_points:
-        gcode.append(f"G1 X{x:.2f} Y{y:.2f} F{feedrate_xy}")    # Se placer au-dessus du point
-        gcode.append("G1 Z{:.2f} F{}".format(z_init-2, feedrate_z))  # Toucher la toile
-        gcode.append("G1 Z{:.2f} F{}".format(z_init+10, feedrate_z)) # Relever le pinceau
+    for x, y in sorted_points:
+        gcode.append(f"G1 X{x:.2f} Y{y:.2f} F{feedrate_xy}")
+        gcode.append("G1 F500 Z{:.2f} F{}".format(z_init - 2, feedrate_z))  # toucher
+        gcode.append("G1 F1500 Z{:.2f} F{}".format(z_init + 5, feedrate_z))  # relever
 
     return gcode
 
+def optimiser_ordre_points(paint_points):
+    """
+    Réorganise les points pour minimiser les déplacements (nearest neighbor TSP).
+
+    :param paint_points: tableau Nx2 des points (X, Y)
+    :return: tableau Nx2 trié selon l’ordre optimisé
+    """
+    if len(paint_points) == 0:
+        return paint_points
+
+    points = paint_points.copy()
+    visited = []
+    current_index = 0
+    remaining = list(range(1, len(points)))
+    visited.append(current_index)
+
+    while remaining:
+        current_point = points[current_index]
+        dists = np.linalg.norm(points[remaining] - current_point, axis=1)
+        next_idx_in_remaining = np.argmin(dists)
+        next_index = remaining.pop(next_idx_in_remaining)
+        visited.append(next_index)
+        current_index = next_index
+
+    return points[visited]
 
 def save_gcode(gcode_lines, output_path):
     with open(output_path, "w") as f:
